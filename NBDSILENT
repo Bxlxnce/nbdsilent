@@ -1,1 +1,81 @@
-local _0xA1B2C3=hookfunction;local _0xD4E5F6=setmetatable({},{__index=function(_,v)return game:GetService(v)end});local _0xG7H8I9=function()local a=_0xD4E5F6['UserInputService'];local b=_0xD4E5F6['Players'];local c=_0xD4E5F6['Workspace'];local d=a:GetMouseLocation();local e,f,g=nil,nil,9e9;for h,i in next,b:GetPlayers()do if i~=b.LocalPlayer and i.Character and i.Character:FindFirstChild('HumanoidRootPart')then local j=i.Character.HumanoidRootPart;local k,l=c.CurrentCamera:WorldToScreenPoint(j.Position);if l then local m=(Vector2.new(k.X,k.Y)-d).Magnitude;if m<g then g=m;e=i;f=i.Character end end end end;return e,f end;local _0xJ0K1L2=require(_0xD4E5F6['ReplicatedStorage'].Components.BulletFactory);if not _0xJ0K1L2 then return end;local _0xM3N4O5=require(_0xD4E5F6['ReplicatedStorage'].Shared.Raycast2);if not _0xM3N4O5 then return end;local _0xP6Q7R8=_0xA1B2C3(_0xJ0K1L2.Fire,function(q,r,s,...)local t,u=_0xG7H8I9();if t and u then local v=u:FindFirstChild('Head')or u:FindFirstChild('HumanoidRootPart');if v then local w=(v.Position-r).Magnitude;local x=w/(1e3+1e3);local y=v.AssemblyLinearVelocity or Vector3.new(0,0,0);local z=v.Position+y*x;local A=_0xM3N4O5.Raycast(_0xM3N4O5,r,z-r,nil,_0xJ0K1L2.CanBulletPassThrough);if A and A.Instance and A.Instance:IsDescendantOf(u)then local B=(z-r).Unit;_0xD4E5F6['RunService'].Stepped:Wait();local C=_0xJ0K1L2.CalcArc(_0xJ0K1L2,q,r,B,x);s=(C-r).Unit*math.min(w,6e3)end end end;return _0xP6Q7R8(q,r,s,...)end);if not _0xP6Q7R8 then return end;pcall(function()_0xD4E5F6['StarterGui']:SetCore('SendNotification',{Title='Headshot Aimbot Loaded',Text='Made by Twi',Duration=(10/2)})end)
+local Players = game:GetService('Players')
+local Workspace = game:GetService('Workspace')
+local ReplicatedStorage = game:GetService('ReplicatedStorage')
+local UserInputService = game:GetService('UserInputService')
+local RunService = game:GetService('RunService')
+local CoreGui = game:GetService("StarterGui")
+local LocalPlayer = Players.LocalPlayer
+local Camera = Workspace.CurrentCamera
+
+-- Load the BulletFactory module
+local Bullet = require(ReplicatedStorage.Components.BulletFactory)
+local u5 = game:GetService("ReplicatedStorage")
+local u10 = require(u5.Shared.Raycast2) -- Raycast2 module for raycasting
+local u2 = Bullet -- Reference to u2, as BulletFactory returns setmetatable(u2, v1)
+local u3 = require(game.ReplicatedStorage.World) -- Needed for u2.CalcArc
+
+function GetClosestToMouse()
+    local MouseLocation = UserInputService:GetMouseLocation()
+    local ClosestPlayer = nil
+    local ClosestCharacter = nil
+    local ClosestDistance = math.huge
+
+    for _, Player in next, Players:GetPlayers() do
+        if (Player ~= LocalPlayer and Player.Character and Player.Character:FindFirstChild('HumanoidRootPart')) then
+            local Character = Player.Character
+            local RootPart = Character.HumanoidRootPart
+        
+            local ScreenPosition, OnScreen = Camera:WorldToScreenPoint(RootPart.Position)
+            if (OnScreen) then
+                local Distance = (Vector2.new(ScreenPosition.X, ScreenPosition.Y) - MouseLocation).Magnitude
+                if (Distance < ClosestDistance) then
+                    ClosestDistance = Distance
+                    ClosestPlayer = Player
+                    ClosestCharacter = Character
+                end
+            end
+        end
+    end
+
+    return ClosestPlayer, ClosestCharacter
+end
+
+local OldFire
+OldFire = hookfunction(u2.Fire, function(BulletId, Origin, BulletPos, ...)
+    local Player, Character = GetClosestToMouse()
+    if (Player and Character) then
+        -- Try to target Head, fallback to HumanoidRootPart
+        local Target = Character:FindFirstChild('Head') or Character:FindFirstChild('HumanoidRootPart')
+        if Target then
+            -- Hardcode bullet velocity
+            local BulletVelocity = 500 -- Hardcoded value (studs per second)
+
+            -- Calculate distance and travel time
+            local Distance = (Target.Position - Origin).Magnitude
+            local TravelTime = Distance / BulletVelocity
+
+            -- Predict target's future position based on velocity
+            local TargetVelocity = Target.AssemblyLinearVelocity or Vector3.new(0, 0, 0)
+            local PredictedPosition = Target.Position + TargetVelocity * TravelTime
+
+            -- Always redirect the bullet toward the predicted head position
+            local Direction = (PredictedPosition - Origin).Unit
+            local TimeStep = RunService.Stepped:Wait() -- Dynamic frame time
+            local AdjustedPosition = u2.CalcArc(BulletId, Origin, Direction, TravelTime)
+
+            BulletPos = (AdjustedPosition - Origin).Unit * math.min(Distance, BulletVelocity * 3) -- Cap at 3 seconds of travel
+
+            local RaycastResult = u10.Raycast(Origin, PredictedPosition - Origin, nil, u2.CanBulletPassThrough)
+            if RaycastResult and RaycastResult.Instance and not RaycastResult.Instance:IsDescendantOf(Character) then
+            end
+        end
+    end
+
+    return OldFire(BulletId, Origin, BulletPos, ...)
+end)
+
+CoreGui:SetCore("SendNotification", {
+    Title = "Headshot Aimbot Loaded",
+    Text = "All Hit Shots Redirect to Head",
+    Duration = 5
+})
